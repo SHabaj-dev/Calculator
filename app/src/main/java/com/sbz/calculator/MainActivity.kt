@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     modifier = Modifier.fillMaxSize()
                 ) { innerPadding ->
-                    Surface(
+                Surface(
                         modifier = Modifier
                             .padding(innerPadding)
                             .fillMaxSize()
@@ -69,8 +69,8 @@ class MainActivity : ComponentActivity() {
                         val calculatorButton = remember {
                             mutableStateListOf(
                                 CalculatorButton("AC", CalculatorButtonType.Reset),
-                                CalculatorButton("AC", CalculatorButtonType.Reset),
-                                CalculatorButton("AC", CalculatorButtonType.Reset),
+                                CalculatorButton("C", CalculatorButtonType.Reset),
+                                CalculatorButton("%", CalculatorButtonType.Normal),
                                 CalculatorButton("/", CalculatorButtonType.Action),
 
                                 CalculatorButton("7", CalculatorButtonType.Normal),
@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
 
                                 CalculatorButton(
                                     icon = Icons.Outlined.Refresh,
-                                    type = CalculatorButtonType.Normal
+                                    type = CalculatorButtonType.Reset
                                 ),
                                 CalculatorButton("0", CalculatorButtonType.Normal),
                                 CalculatorButton(".", CalculatorButtonType.Normal),
@@ -117,7 +117,7 @@ class MainActivity : ComponentActivity() {
                                     text = uiText,
                                     fontSize = 46.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onSecondary
                                 )
                                 Spacer(modifier = Modifier.height(32.dp))
                                 LazyVerticalGrid(
@@ -136,32 +136,76 @@ class MainActivity : ComponentActivity() {
                                             onClick = {
                                                 when (it.type) {
                                                     CalculatorButtonType.Normal -> {
-                                                        setUiText(uiText.toInt().toString() + it.text)
-                                                        setInput((input ?: "") + it.text)
+                                                        // Handle number and decimal input
+                                                        if (it.text != null) {
+                                                            val currentDisplay = if (uiText == "0") "" else uiText
+                                                            val newText = currentDisplay + it.text
+                                                            setUiText(newText)
+                                                            setInput((input ?: "") + it.text)
+                                                        }
                                                     }
 
                                                     CalculatorButtonType.Action -> {
-                                                        setUiText(uiText.toInt().toString() + it.text)
-                                                        if (it.text != "=") {
-                                                            val result = viewModel.getResult()
-                                                            setUiText(result.toString())
-                                                            viewModel.resetAll()
-                                                        } else {
-                                                            if (input != null) {
-                                                                if (viewModel.firstNumber.value == null) {
-                                                                    viewModel.setFirstNumber(input.toDouble())
+                                                        if (it.text == "=") {
+                                                            // Calculate result when equals is pressed
+                                                            if (input != null && input.isNotEmpty()) {
+                                                                viewModel.setSecondNumber(input.toDoubleOrNull() ?: 0.0)
+                                                                val result = viewModel.getResult()
+                                                                
+                                                                // Format result to remove unnecessary decimals
+                                                                val formattedResult = if (result % 1.0 == 0.0) {
+                                                                    result.toInt().toString()
                                                                 } else {
-                                                                    viewModel.setSecondNumber(input.toDouble())
+                                                                    result.toString()
                                                                 }
-                                                                viewModel.setAction(it.text!!)
+                                                                
+                                                                setUiText(formattedResult)
+                                                                setInput(formattedResult)
+                                                                viewModel.resetAll()
                                                             }
-                                                            setInput(null)
+                                                        } else {
+                                                            // Handle operators (+, -, X, /)
+                                                            if (input != null && input.isNotEmpty()) {
+                                                                if (viewModel.firstNumber.value != null && viewModel.action.value.isNotEmpty()) {
+                                                                    // If there's already a calculation in progress, compute it first
+                                                                    viewModel.setSecondNumber(input.toDoubleOrNull() ?: 0.0)
+                                                                    val result = viewModel.getResult()
+                                                                    
+                                                                    val formattedResult = if (result % 1.0 == 0.0) {
+                                                                        result.toInt().toString()
+                                                                    } else {
+                                                                        result.toString()
+                                                                    }
+                                                                    
+                                                                    setUiText(formattedResult)
+                                                                    viewModel.setFirstNumber(result)
+                                                                    viewModel.setAction(it.text ?: "")
+                                                                } else {
+                                                                    // Store first number and action
+                                                                    viewModel.setFirstNumber(input.toDoubleOrNull() ?: 0.0)
+                                                                    viewModel.setAction(it.text ?: "")
+                                                                    setUiText(uiText + " ${it.text} ")
+                                                                }
+                                                                setInput(null)
+                                                            }
                                                         }
                                                     }
 
                                                     CalculatorButtonType.Reset -> {
-                                                        setUiText("")
-                                                        viewModel.resetAll()
+                                                        // Reset calculator
+                                                        if (it.text == "C" && uiText.isNotEmpty()) {
+                                                            // C button: delete last character
+                                                            val newText = uiText.dropLast(1)
+                                                            setUiText(if (newText.isEmpty()) "0" else newText)
+                                                            if (input != null && input.isNotEmpty()) {
+                                                                setInput(input.dropLast(1))
+                                                            }
+                                                        } else {
+                                                            // AC or Refresh: clear all
+                                                            setUiText("0")
+                                                            setInput(null)
+                                                            viewModel.resetAll()
+                                                        }
                                                     }
                                                 }
                                             }
@@ -175,7 +219,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.TopCenter
                         ) {
-                            Row(
+                            /*Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -193,7 +237,7 @@ class MainActivity : ComponentActivity() {
                                     contentDescription = null,
                                     tint = Color.White
                                 )
-                            }
+                            }*/
                         }
                     }
                 }
@@ -218,7 +262,7 @@ fun CalcButton(button: CalculatorButton, onClick: () -> Unit) {
     ) {
         val contentColor =
             when (button.type) {
-                CalculatorButtonType.Normal -> Color.White
+                CalculatorButtonType.Normal -> MaterialTheme.colorScheme.onSecondary
                 CalculatorButtonType.Action -> Red
                 else -> Cyan
             }
